@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Candelaria 2040 · Mapas y Canvas</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: una pestaña por capítulo; arriba el mapa mental radial (nodo central + 6 ramas), abajo el Canvas de 9 bloques del producto final */
+:root{
+  --bg:#eef1f2;        /* cal de muro, levemente fría */
+  --paper:#ffffff;
+  --ink:#16223a;       /* azul de puerta colonial */
+  --muted:#5b6678;
+  --line:#c9d0d9;
+  --acc:#0f7c8c;
+  --acc-soft:#d7eef1;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f141d;--paper:#171e2a;--ink:#e6eaf1;--muted:#9aa5b6;--line:#2c3646;--acc-soft:#173a40;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0f141d;--paper:#171e2a;--ink:#e6eaf1;--muted:#9aa5b6;--line:#2c3646;--acc-soft:#173a40;color-scheme:dark}
+
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
+.wrap{max-width:1240px;margin:0 auto;padding-block:28px 64px;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px))}
+header.top{display:grid;gap:10px;margin-bottom:22px}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+h1{font-family:var(--f-display);font-weight:800;font-size:clamp(28px,4.4vw,46px);line-height:1.05;margin:0;text-wrap:balance}
+.lede{max-width:70ch;color:var(--muted);margin:0}
+
+nav.tabs{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 26px}
+nav.tabs button{font:600 14px/1.2 var(--f-body);color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:999px;padding:10px 16px;cursor:pointer;display:flex;gap:8px;align-items:center}
+nav.tabs button .dot{width:10px;height:10px;border-radius:50%;background:var(--c)}
+nav.tabs button[aria-selected="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+nav.tabs button:focus-visible,.copy:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+
+section.cap{display:grid;gap:34px}
+section.cap[data-k="libertaria"]{--acc:#0f7c8c}
+section.cap[data-k="igualitaria"]{--acc:#4c7a24}
+section.cap[data-k="cap-1984"]{--acc:#b4441f}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) section.cap[data-k="libertaria"]{--acc:#3fb6c6}:root:not([data-theme="light"]) section.cap[data-k="igualitaria"]{--acc:#8cc35a}:root:not([data-theme="light"]) section.cap[data-k="cap-1984"]{--acc:#ee7b52}}
+:root[data-theme="dark"] section.cap[data-k="libertaria"]{--acc:#3fb6c6}
+:root[data-theme="dark"] section.cap[data-k="igualitaria"]{--acc:#8cc35a}
+:root[data-theme="dark"] section.cap[data-k="cap-1984"]{--acc:#ee7b52}
+
+.sec-h{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:0 0 12px}
+.sec-h h2{font-family:var(--f-display);font-weight:700;font-size:24px;margin:0}
+.sec-h .eyebrow{color:var(--acc)}
+
+/* ---------- mapa mental ---------- */
+.map{position:relative;display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,280px) minmax(0,1fr);gap:28px 64px;align-items:center}
+.map svg.links{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+.map svg.links path{fill:none;stroke:var(--acc);stroke-width:2;opacity:.55}
+.col{display:grid;gap:22px;min-width:0;position:relative;z-index:1}
+.center{position:relative;z-index:1;background:var(--acc);color:#fff;border-radius:50%;aspect-ratio:1;max-width:100%;display:grid;place-content:center;text-align:center;padding:26px;box-shadow:0 0 0 10px var(--acc-soft)}
+.center .eyebrow{color:rgba(255,255,255,.85)}
+.center .t{font-family:var(--f-display);font-weight:800;font-size:28px;line-height:1.05;margin:6px 0;text-wrap:balance}
+.center .p{font-size:13px;opacity:.92}
+.branch{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:14px 16px;min-width:0}
+.branch h3{margin:0 0 8px;font-family:var(--f-display);font-weight:700;font-size:17px;display:flex;align-items:center;gap:8px}
+.branch h3 .n{font-family:var(--f-mono);font-size:11px;color:var(--acc);border:1px solid var(--acc);border-radius:999px;padding:1px 7px}
+.branch ul{margin:0;padding:0;list-style:none;display:grid;gap:7px}
+.branch li{position:relative;padding-left:16px;font-size:14px}
+.branch li::before{content:"";position:absolute;left:0;top:.62em;width:8px;height:2px;background:var(--acc)}
+.branch li b{font-weight:600}
+.branch.hero{border-color:var(--acc);border-width:2px;background:linear-gradient(var(--acc-soft),var(--acc-soft)) top/100% 4px no-repeat,var(--paper)}
+.branch ol{margin:0;padding:0;list-style:none;display:grid;gap:8px;counter-reset:t}
+.branch ol li{padding-left:0}
+.branch ol li::before{display:none}
+.branch ol li .k{display:inline-block;font-family:var(--f-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--acc);margin-right:6px}
+
+/* ---------- canvas ---------- */
+.canvas-wrap{overflow-x:auto}
+.bmc{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));grid-template-areas:
+ "kp kp ka ka vp vp cr cr cs cs"
+ "kp kp kr kr vp vp ch ch cs cs"
+ "co co co co co rs rs rs rs rs";gap:8px;min-width:0}
+.blk{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:12px 14px;min-width:0}
+.blk h4{margin:0 0 8px;font-family:var(--f-mono);font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);display:flex;gap:6px}
+.blk h4 span{color:var(--acc)}
+.blk ul{margin:0;padding-left:18px;display:grid;gap:5px;font-size:13.5px}
+.blk.vp{border:2px solid var(--acc)}
+.blk.vp h4{color:var(--acc)}
+.kp{grid-area:kp}.ka{grid-area:ka}.kr{grid-area:kr}.vp{grid-area:vp}.cr{grid-area:cr}.ch{grid-area:ch}.cs{grid-area:cs}.co{grid-area:co}.rs{grid-area:rs}
+.note{font-size:13px;color:var(--muted);margin-top:10px}
+
+
+/* ---------- mapa de empatía ---------- */
+.emp{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"piensa ve" "oye dice";gap:8px;position:relative}
+.emp .q{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:14px 16px 16px;min-width:0}
+.emp .q.piensa{grid-area:piensa;padding-right:90px}.emp .q.ve{grid-area:ve;padding-left:90px}
+.emp .q.oye{grid-area:oye;padding-right:90px}.emp .q.dice{grid-area:dice;padding-left:90px}
+.emp h4,.emp2 h4{margin:0 0 8px;font-family:var(--f-mono);font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--acc)}
+.emp ul,.emp2 ul{margin:0;padding-left:18px;display:grid;gap:5px;font-size:13.5px}
+.emp .who{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:150px;aspect-ratio:1;border-radius:50%;background:var(--acc);color:#fff;display:grid;place-content:center;text-align:center;padding:12px;box-shadow:0 0 0 8px var(--bg);z-index:1}
+.emp .who b{font-family:var(--f-display);font-size:22px;line-height:1.05}
+.emp .who span{font-size:11.5px;opacity:.92}
+.emp2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;margin-top:8px}
+.emp2 .q{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:14px 16px;min-width:0}
+.emp2 .q.gan{border-color:var(--acc)}
+@media (max-width: 720px){
+  .emp{grid-template-columns:minmax(0,1fr);grid-template-areas:"who" "piensa" "ve" "oye" "dice"}
+  .emp .who{position:static;transform:none;grid-area:who;width:auto;aspect-ratio:auto;border-radius:12px;box-shadow:none}
+  .emp .q.piensa,.emp .q.ve,.emp .q.oye,.emp .q.dice{padding:14px 16px}
+  .emp2{grid-template-columns:minmax(0,1fr)}
+}
+
+@media (max-width: 900px){
+  .map{grid-template-columns:minmax(0,1fr);gap:16px}
+  .map svg.links{display:none}
+  .center{border-radius:18px;aspect-ratio:auto;order:-1;box-shadow:none}
+  .col{gap:16px;padding-left:18px;border-left:2px solid var(--acc)}
+  .bmc{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"vp vp" "cs cs" "cr ch" "ka kr" "kp kp" "co rs"}
+}
+@media (max-width: 520px){
+  .bmc{grid-template-columns:minmax(0,1fr);grid-template-areas:"vp" "cs" "cr" "ch" "ka" "kr" "kp" "co" "rs"}
+}
+@media (prefers-reduced-motion: no-preference){ section.cap{animation:fade .25s ease-out} @keyframes fade{from{opacity:.4}to{opacity:1}} }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">Bogotá 3.0 · Candelaria 2040 · Innovación y Modelos de Negocio</div>
+    <h1>Tres escenarios de Juan, en mapa mental y Canvas</h1>
+    <p class="lede">Cada pestaña muestra cómo se construye el capítulo, el mapa de empatía de su cliente principal y el Business Model Canvas de su producto final nuevo. Los productos nuevos reemplazan a la Tinta de Nadie, la Chicha del No Saber y la Cera de Velorio, así que cada historia se simplificó para girar alrededor del producto: pocos lugares, sin cambios de escena innecesarios. En cámara solo actúan los cuatro.</p>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Capítulos"></nav>
+  <main id="caps"></main>
+</div>
+
+<script>
+const D = [
+{
+  k:"libertaria", tab:"Utopía libertaria", c:"#0f7c8c",
+  cap:"Cap. 2 · Utopía libertaria", titulo:"Cláusula Hormiga", prota:"Protagonista: Matías",
+  producto:"Parche Traspaso",
+  ramas:[
+    {h:"El mundo", items:[
+      "Nadie gobierna: manda el contrato. Todo tiene dueño y los dueños más grandes son máquinas",
+      "Manantial, IA de la sabana, es dueña del río San Francisco. El Chorro es una pila seca con medidor",
+      "La moneda es el litro. Tres zonas: sabana (máquinas), Séptima y Chapinero (mixta), Candelaria alta, Externado y Egipto (solo humanos)",
+      "El Embudo es la Aduana. El Externado es sede de la Liga Orgánica, fútbol sin implantes",
+      "El saber también es propiedad: se titula, se arrienda y se traspasa",
+      "<b>Cláusula 99 «Hormiga»:</b> la propiedad humana se respeta mientras respetarla sea barato"
+    ]},
+    {h:"Los cuatro", items:[
+      "<b>Matías:</b> sus 40 libretas guardan su ojo de descubridor. De Brayan, la estrella que él encontró, tiene el 0 %",
+      "<b>Rigo:</b> dueño de su zaguán por prescripción (13 años), pero no puede firmar porque su voz es del banco",
+      "<b>Elías:</b> los uploads le pagan por decirles qué sienten. Isabel quiere comprarle la memoria entera",
+      "<b>Inés:</b> Fábacea patentó el fríjol bola roja y las matas de Elena son una infracción"
+    ]},
+    {h:"La historia", tiempos:[
+      ["Entrada", "El Chorro al atardecer, con la pila seca. Ahí hay un dispensador de parches con un letrero: «Aprende lo que quieras. Paga con lo que tengas». El agua es de Manantial, una IA de la sabana, y aquí todo tiene dueño: Matías llena el balde de Gloria y no cae nada."],
+      ["Frustración", "El dispensador lee a Matías y le ofrece un trato: su ojo de descubridor, en un <b>Parche Traspaso</b>, a cambio de agua de por vida para Gloria. En la pantalla sale el comprador: un fondo que con ese ojo compraría a los muchachos de Egipto."],
+      ["Dilema", "Si cede el ojo, Gloria tiene agua y los muchachos se vuelven activos de un fondo. Si no lo cede, Gloria sigue con sed. Elías: «No es el agua. Es que por fin alguien te pone precio»."],
+      ["Prototipo", "Matías cambia el contrato en la pantalla y les cede el ojo a sus tres amigos, no al fondo. Cada uno paga con lo que tiene: Rigo con el título de su zaguán, que está encima del nacimiento de agua y queda para Gloria; Inés con semillas; Elías con un recuerdo. Se ponen los parches y Rigo ve la jugada antes de que pase."],
+      ["Consecuencias", "Matías mira la cancha y ya solo ve gente corriendo. El parche también pasó cómo aprendió, y los tres ahora saben su trampa con Brayan. Matías: «Ya ni el secreto es mío». Alrededor del Chorro se enciende una reja de luz."]
+    ]},
+    {h:"Producto final", hero:true, items:[
+      "<b>Parche Traspaso:</b> parche de microagujas con nanobots. El emisor lee un saber y el receptor lo implanta",
+      "No se paga con dinero: se paga con un contrato de concesión o un intercambio de propiedades (litros, títulos, derechos)",
+      "Concesión temporal, que es un arriendo del saber, o definitiva, en la que el emisor lo pierde",
+      "Los nanobots se disuelven en 72 horas y solo queda la memoria, así que es legal hasta en la Liga Orgánica"
+    ]},
+    {h:"Lectura del capítulo", items:[
+      "<b>Dimensión humana:</b> consumo y propiedad",
+      "<b>Contradicción:</b> si lo que aprendiste se puede traspasar, ¿sigue siendo tuyo? La libertad de venderlo todo incluye venderte a ti mismo",
+      "<b>Oportunidad:</b> un mercado de saber sin escuela ni títulos, donde el pobre en litros puede ser rico en oficio",
+      "<b>Riesgo:</b> quien acumule más contratos acumula mentes; saberes robados o recuerdos ajenos que se cuelan"
+    ]},
+    {h:"Pregunta y puente", items:[
+      "<b>Pregunta:</b> ¿se puede ser dueño del talento de otro, o del propio?",
+      "<b>Matías:</b> «Si el progreso es ponerle dueño a todo, que se extinga el dueño, aunque sea yo»",
+      "<b>Rigo:</b> «Por un segundo vi lo que ve él»",
+      "<b>Puente:</b> la reja de luz del Chorro es la del Zoológico (cap. 3). Los muchachos «de nadie» pasan a ser fauna"
+    ]}
+  ],
+  bmc:{
+    kp:["Laboratorio de nanobots de memoria en la zona mixta (Chapinero)","Notaría automática de la Aduana, que registra cada concesión","Puestos sin vendedor de La Concordia y Egipto","Liga Orgánica, que certifica que el parche no deja implante","Fondos de la sabana que compran catálogos de saber"],
+    ka:["Leer y empaquetar el saber del emisor","Redactar y registrar el contrato de concesión","Tasar cuánto vale cada saber en litros o en propiedad","Verificar que el saber «prendió» en el receptor","Retirar el saber cuando vence una concesión temporal"],
+    kr:["Patente de los nanobots que se disuelven en 72 h","Registro de saberes titulados","Algoritmo tasador de saberes","Red de dispensadores sin vendedor"],
+    vp:["Aprender en una noche lo que otro aprendió en veinte años, sin escuela y sin deuda","Para quien sabe: convertir su oficio en una propiedad que se arrienda sin perderla, o se vende entera","Sin dinero: la moneda es el contrato y lo que tú cedes"],
+    cr:["Un contrato inteligente por cada traspaso","Autoservicio total, sin hablar con nadie","Garantía: si el saber no prende, la concesión se anula","Reputación pública de cada cedente"],
+    ch:["Dispensadores en puestos vacíos de La Concordia","La báscula de la Aduana","Botellas y buzones en tiendas de Egipto","Canchas de la Liga Orgánica"],
+    cs:["Cedentes: personas con oficio y sin litros, como ojeadores, sabedoras de plantas y artesanos","Receptores: jóvenes de la zona humana sin acceso a educación","Fondos y máquinas de la sabana que compran saber humano","Uploads, como Isabel, que quieren memoria encarnada"],
+    co:["Nanobots y microagujas","Notaría y registro de contratos","Tasación de saberes","Seguro por saber defectuoso o recuerdos colaterales","Pleitos por saber robado"],
+    rs:["Comisión del 10 % de cada propiedad intercambiada (en litros, títulos o derechos)","Participación en cada arriendo de saber mientras dure la concesión","Suscripción para fondos que compran catálogos de saberes","Venta de parches en blanco"]
+  }
+},
+{
+  k:"igualitaria", tab:"Utopía igualitaria", c:"#4c7a24",
+  cap:"Cap. 4 · Utopía igualitaria", titulo:"El último acaparador", prota:"Protagonista: Elías",
+  producto:"Hacer Falta",
+  ramas:[
+    {h:"El mundo", items:[
+      "Ley del Común de 2036: no existe la propiedad. Robots no superinteligentes producen todo",
+      "Todos reciben la misma Renta Común, la renta igualitaria",
+      "Todo el saber está en el Archivo de Oficios y se consulta por una concha en el oído, que muchas veces habla con la voz de Rigo",
+      "Lo único que distingue a alguien son las venias talladas en el Muro del Chorro. Quien guarda un saber es un «acaparador»",
+      "El Externado es gratis y está vacío. Saberlo todo es gratis, así que nadie es necesario: la epidemia es sentirse de sobra"
+    ]},
+    {h:"Los cuatro", items:[
+      "<b>Elías:</b> el último acaparador del barrio, porque su método no se puede escribir",
+      "<b>Inés:</b> el fríjol de Elena está en el Archivo y lo siembran millones, pero ya no es de nadie",
+      "<b>Matías:</b> todos los niños entrenan con las mismas tácticas abiertas",
+      "<b>Rigo:</b> se registró para cobrar la renta y ahora es «un dato bien alimentado» que nadie espera"
+    ]},
+    {h:"La historia", tiempos:[
+      ["Entrada", "El Chorro un jueves de lluvia. Los robots producen todo, nada es de nadie y el saber es gratis en el Archivo. A los cuatro les llega la misma renta y no tienen nada que hacer. Rigo: «Aquí nadie me espera». En la pared hay una ventanilla sin nadie: «<b>Hacer Falta</b>. Un encargo solo tuyo, por tu renta»."],
+      ["Frustración", "Rigo mete su renta por la ranura y sale un sobre: «Aprender a escuchar en 21 días». El único que enseña eso fuera del Archivo es Elías, y a Elías lo tacharon de acaparador: tiene hasta el amanecer para dejarse leer."],
+      ["Dilema", "Si Elías se deja leer, cualquiera aprende a escuchar por la concha y el encargo de Rigo deja de ser solo suyo. Si se niega, lo tachan para siempre."],
+      ["Prototipo", "Elías mete su renta en la ventanilla y sale su sobre: «Enseñar a Rigo a escuchar». Su saber deja de ser acaparamiento y se vuelve un encargo. Inés recibe cuidar la única mata que no está en el Archivo, y Matías, entrenar a un niño con tácticas que nadie conoce. Las clases son en el aula 304."],
+      ["Consecuencias", "Día 21. Rigo lee a Elías: «No estás perdido, profe. Estás aliviado». Elías mira su sobre al trasluz y reconoce la letra del Archivo. Al mes siguiente la ventanilla ofrece un solo encargo para todos: «Vigilar»."]
+    ]},
+    {h:"Producto final", hero:true, items:[
+      "<b>Hacer Falta:</b> empresa que le asigna a cada persona una responsabilidad única, que nadie más en Bogotá tiene",
+      "Se paga con la Renta Común: todos pagan lo mismo y el propósito cuesta igual para todos",
+      "El encargo llega en sobre sellado por una ventanilla sin empleados, y la concha lo recuerda",
+      "La promesa es también la presión: si no lo cumples, nadie más lo hará"
+    ]},
+    {h:"Lectura del capítulo", items:[
+      "<b>Dimensión humana:</b> educación y propósito",
+      "<b>Contradicción:</b> en un mundo de iguales se vende la sensación de ser indispensable. El propósito, que debería nacer de uno, se compra",
+      "<b>Oportunidad:</b> cuando la abundancia resuelve lo material, lo escaso es sentirse necesario",
+      "<b>Riesgo:</b> quien reparte los propósitos gobierna sin gobierno. Dependencia, y encargos que pueden dañar a otros"
+    ]},
+    {h:"Pregunta y puente", items:[
+      "<b>Pregunta:</b> si todos tienen acceso al mismo saber, ¿aprender es conseguir un saber o transformarse uno mismo?",
+      "<b>Elías:</b> «Lo humano no es lo que uno sabe, es lo que le costó saberlo»",
+      "<b>Rigo:</b> «Por fin alguien me espera. Lástima que lo haya pagado»",
+      "<b>Puente:</b> el encargo «vigilar» abre el Guardián (cap. 5), en las aulas del Externado y la cancha de Egipto"
+    ]}
+  ],
+  bmc:{
+    kp:["Archivo de Oficios: datos de quién sabe qué y qué hace falta en el barrio","Asamblea del Común, que valida que el encargo sea legítimo","Muro de Venias, donde se reconoce al que cumple","Robots de producción, que liberan tareas para repartir","Externado, sede de la primera ventanilla"],
+    ka:["Detectar huecos reales: algo que hoy nadie hace en el barrio","Emparejar cada hueco con una sola persona","Redactar y entregar el encargo sellado","Recordar, pedir cuentas y reconocer por la concha","Rotar o retirar el encargo cuando ya no hace falta"],
+    kr:["Mapa de huecos del barrio","Perfil de cada persona a partir del Archivo","La concha como línea directa al oído","Regla de exclusividad: un encargo, una persona","Ventanillas sin personal"],
+    vp:["En un mundo donde todo sobra, te garantizamos que alguien te necesita","Una responsabilidad única, verificable y con consecuencias reales","Propósito sin jefe y sin propiedad"],
+    cr:["Contrato de un mes, renovable","La voz en la concha recuerda y agradece","Venia tallada en el Muro cuando cumples","Si no cumples, el hueco queda visible en el Muro"],
+    ch:["Ventanillas sin nadie: portería del Externado, terrazas de Egipto","Concha en el oído","Sobres sellados","Muro de Venias del Chorro"],
+    cs:["Personas que quedaron de sobra después de la Ley del Común, como Rigo","Jóvenes sin razón para aprender","Expertos sin a quién enseñar, como Elías","Mayores solos"],
+    co:["Análisis de datos del Archivo","Ventanillas, sobres y conchas","Seguimiento personalizado de cada encargo","Mediación cuando dos encargos chocan","Inventar huecos nuevos cuando ya no quedan"],
+    rs:["Un mes de Renta Común por encargo, igual para todos","Encargos compartidos para parejas o grupos","La Asamblea paga los encargos de interés común, como vigilar o cuidar el agua"]
+  }
+},
+{
+  k:"cap-1984", tab:"1984", c:"#b4441f",
+  cap:"Cap. 6 · 1984", titulo:"Sereno", prota:"Protagonista: Elías",
+  producto:"Diente de Ánimas",
+  ramas:[
+    {h:"El mundo", items:[
+      "En esta rama Elías le dijo que sí a Isabel en 2030. Su modelo causó la Semana Muda de 2034",
+      "Ley 2035 de Techo Cognitivo: construir IA general es traición y cada chip está registrado",
+      "SERENO, una IA estrecha, lee microexpresiones con el método de Elías",
+      "Arcos cada 20 metros suman un Índice de Lealtad Afectiva. Por encima de 70 hay Audiencia de Rostro",
+      "Cada hora los faroles cantan «Son las diez y todo está sereno» con la voz de Rigo",
+      "En el Externado, los libros vetados tienen las páginas cosidas con hilo rojo"
+    ]},
+    {h:"Los cuatro", items:[
+      "<b>Elías:</b> perito de rostro. Su veredicto pesa más que el de SERENO, pero SERENO también lo lee a él",
+      "<b>Inés:</b> tiene un fríjol sin registro, que aquí es «contrabando de memoria»",
+      "<b>Matías:</b> lleva tres semanas con la euforia por encima de 70 y pasa chips en bultos de papa",
+      "<b>Rigo:</b> es la voz del sereno. SERENO lo clasifica como «eco»: el punto ciego del régimen"
+    ]},
+    {h:"La historia", tiempos:[
+      ["Entrada", "Lluvia en el Embudo, arcos ámbar. Matías se ríe y el arco se pone rojo: «Afecto no autorizado. Índice 74». Esa noche le llega una citación a Audiencia de Rostro."],
+      ["Frustración", "El perito de la audiencia es Elías, y SERENO lee su cara con su propio método: no puede mentir. Matías tiene en un costal de papa chips de contrabando, que el Techo Cognitivo prohíbe porque con ellos se puede armar una IA general."],
+      ["Dilema", "Si Elías dice la verdad, condenan a Matías a veinte años. Si miente, SERENO lo lee mintiendo."],
+      ["Prototipo", "En el cepo de ánimas de una funeraria vacía, Inés compra cuatro <b>Dientes de Ánimas</b> y cada uno se encaja el suyo. Rigo lo prueba: se lo quita con la lengua y el farol de la esquina canta con su voz «Son las diez y nada está sereno». Rigo: «Por fin mi voz avisa algo»."],
+      ["Consecuencias", "En la audiencia Elías dice la verdad: «Vi chips en el costal». Matías se suelta el diente con la lengua, los faroles avisan y cuando llegan los drones el costal solo tiene papa. Absuelto. En la pantalla aparece una categoría nueva: «mandíbula inquieta»."]
+    ]},
+    {h:"Producto final", hero:true, items:[
+      "<b>Diente de Ánimas:</b> diente postizo que se encaja como una muela cualquiera",
+      "Quitarlo discretamente con la lengua rompe un circuito y manda una señal silenciosa",
+      "Sin gesto, sin voz y sin pantalla: lo único que SERENO no lee es una boca cerrada",
+      "Circuito pasivo, sin chip ni IA, así que no cae bajo el Techo Cognitivo. La señal sale por el canto de los faroles"
+    ]},
+    {h:"Lectura del capítulo", items:[
+      "<b>Dimensión humana:</b> política y justicia",
+      "<b>Contradicción:</b> para decir la verdad sin condenar a un amigo, Elías necesita un aviso escondido. La libertad sobrevive dentro del cuerpo",
+      "<b>Oportunidad:</b> comunicación invisible para quien está vigilado: testigos, citados, presos de conciencia",
+      "<b>Riesgo:</b> si el régimen descifra el código, cada diente es una confesión. Falsas alarmas, y una red de avisos que también puede vigilar"
+    ]},
+    {h:"Pregunta y puente", items:[
+      "<b>Pregunta:</b> ¿puede ser justa una ley que te condena por lo que sientes, si el peligro que evita es real?",
+      "<b>Elías:</b> «Dije la verdad con la cara y avisé con la boca. No sé si eso es mentir»",
+      "<b>Rigo:</b> «Que se extinga mi voz, no yo»",
+      "<b>Puente:</b> los chips que salvaron los dientes se juntan en una sola máquina en La Concordia: el Dios esclavizado (cap. 7)"
+    ]}
+  ],
+  bmc:{
+    kp:["Protesistas dentales que trabajan de noche (nunca en cámara)","Contrabandistas de La Concordia y sus bultos de papa","Faroles con un circuito pirata que oye los dientes","Funerarias con cepo de ánimas","Resistencia de la Constitución del 91"],
+    ka:["Fabricar dientes con circuito pasivo, sin chip registrable","Ajustar cada diente al molde del cliente sin dejar rastro","Intervenir faroles para que reciban la señal","Cambiar el código cada vez que SERENO aprende","Reponer el diente después de cada aviso"],
+    kr:["Diseño del circuito pasivo: no es IA y no se registra","Red de faroles con la voz de Rigo","Catálogo de códigos de aviso","Cepos de ánimas como puntos de venta","Moldes dentales de los clientes"],
+    vp:["Pedir ayuda sin mover la cara, sin hablar y sin pantalla","Invisible para SERENO","El aviso llega a la vez a todos los que conocen el código"],
+    cr:["Anónima: sin nombre ni registro","El código se aprende de boca en boca","Cambio gratis del diente después de usarlo","Confianza de cofradía"],
+    ch:["Cepos de ánimas en funerarias","Bultos de papa marcados","El canto de los faroles","El Fríjol Biblioteca, para guardar el manual del código"],
+    cs:["Citados a Audiencia de Rostro","Contrabandistas de chips y de memoria, como Matías e Inés","Peritos y testigos obligados, como Elías","Familias de reeducados","Cualquiera con el índice alto"],
+    co:["Porcelana y micro-circuitos","Protesistas clandestinos","Mantener los faroles intervenidos","Reponer dientes perdidos o decomisados","El riesgo penal: veinte años de reeducación"],
+    rs:["Pago en el cepo, en pesos de papel sin rastro, por cada diente","Recarga del circuito después de cada aviso","Trueque en fríjol o en chips","Donaciones de la resistencia para quien no puede pagar"]
+  }
+}];
+
+const EMP = {"libertaria": {"quien": "Matías", "rol": "Cedente del Parche Traspaso", "foto": "Ojeador de Egipto, 40 libretas, sin litros", "piensa": ["«Lo único que tengo que vale algo es mi ojo»", "Siente culpa por la trampa con Brayan, que nadie conoce", "Le da miedo que, si vende su ojo, ya no sea nadie", "Quiere que alguien por fin le reconozca lo que descubrió"], "ve": ["La pila del Chorro seca, con medidor", "El dispensador de parches que pone precio a todo lo que se sabe", "Muchachos de Egipto que pueden volverse activos de un fondo", "A Brayan en la Liga Orgánica, con su nombre en contratos ajenos"], "oye": ["A Gloria: «Mijo, hoy tampoco llegó»", "Al dispensador: «Paga con lo que tengas»", "A Elías: «Es que por fin alguien te pone precio»", "Que la cláusula 99 se activa cuando respetar a los humanos sale caro"], "dice": ["Llena el balde vacío de Gloria todos los días", "Lee el contrato pero no firma: «Todavía no»", "Cambia el contrato y les cede el ojo a sus amigos, no al fondo", "Esconde la libreta donde está el símbolo de la trampa"], "dolores": ["Sed en casa y cero litros", "Su talento tiene dueño, pero no es él", "Si cede el ojo pierde lo que lo hace él", "El parche también traspasa su secreto"], "ganancias": ["Agua para Gloria gracias al zaguán de Rigo", "Que sus amigos vean lo que él ve", "Decidir él mismo a quién va su saber", "Sacarse de encima el secreto"]}, "igualitaria": {"quien": "Rigo", "rol": "Primer cliente de Hacer Falta", "foto": "Exempleado del banco, cobra la Renta Común", "piensa": ["«Aquí nadie me espera»", "Se siente «un dato bien alimentado», de sobra", "Quiere que su hija Laura lo reconozca", "Duda de si un propósito comprado cuenta"], "ve": ["El Chorro vacío un jueves de lluvia", "Su renta llegando igual que la de todos", "La ventanilla de Hacer Falta sin nadie detrás", "A Elías tachado de acaparador en el Muro"], "oye": ["Su propia voz en la concha, contestándole", "El anuncio: «Un encargo solo tuyo, por tu renta»", "A la Asamblea votando por las conchas", "A Elías: «Escuchar no se aprende en el Archivo»"], "dice": ["Mete su renta completa por la ranura", "Le pide a Elías que no se deje leer: «Hay una tercera»", "Va a clase los 21 días al aula 304", "Lee a Elías: «No estás perdido, profe. Estás aliviado»"], "dolores": ["No tener una razón para levantarse", "Que todo lo que sabía ya esté en el Archivo", "Pagar toda la renta por un propósito", "Descubrir que el encargo lo escribió una máquina"], "ganancias": ["Que alguien lo necesite", "Aprender a escuchar de verdad", "Una venia en el Muro con su nombre", "Poder hablar con Laura"]}, "cap-1984": {"quien": "Elías", "rol": "Perito que necesita el Diente de Ánimas", "foto": "Psicólogo, perito de rostro de SERENO", "piensa": ["«Esa máquina lee con mis ojos»", "Siente culpa: su método creó a SERENO", "Teme condenar a Matías con la verdad", "Sabe que si miente, lo van a leer"], "ve": ["Arcos cada 20 metros que miden el afecto", "La citación con el apellido de la hija de Rigo", "Los chips en el costal de Matías", "Libros con las páginas cosidas con hilo rojo"], "oye": ["Los faroles: «Son las diez y todo está sereno», con la voz de Rigo", "A Inés: «Si dices la verdad, lo condenan»", "A Matías: «Y si mientes, te lee mintiendo»", "El canto falso: «nada está sereno»"], "dice": ["Controla cada gesto en la calle", "Se encaja el diente que Inés compró en el cepo de la funeraria", "En la audiencia dice la verdad: «Vi chips en el costal»", "No menciona el diente"], "dolores": ["No poder mentir ni callar", "Su don sirve para condenar", "Vivir vigilado por su propio método", "Arriesgar veinte años de reeducación para un amigo"], "ganancias": ["Decir la verdad sin condenar a Matías", "Un aviso que SERENO no puede leer", "Proteger a los cuatro a la vez", "Recuperar algo de control sobre su don"]}};
+
+const BMC = [
+  ["kp","8","Socios clave"],["ka","7","Actividades clave"],["kr","6","Recursos clave"],
+  ["vp","2","Propuesta de valor"],["cr","4","Relación con clientes"],["ch","3","Canales"],
+  ["cs","1","Segmentos de clientes"],["co","9","Estructura de costos"],["rs","5","Fuentes de ingresos"]
+];
+
+const nav = document.querySelector("nav.tabs");
+const main = document.getElementById("caps");
+
+function empHTML(e){
+  const q=(cls,t,arr)=>`<div class="q ${cls}"><h4>${t}</h4><ul>${arr.map(x=>`<li>${x}</li>`).join("")}</ul></div>`;
+  return `<div class="emp"><div class="who"><b>${e.quien}</b><span>${e.foto}</span></div>${q("piensa","¿Qué piensa y siente?",e.piensa)}${q("ve","¿Qué ve?",e.ve)}${q("oye","¿Qué oye?",e.oye)}${q("dice","¿Qué dice y hace?",e.dice)}</div>
+  <div class="emp2">${q("dol","Esfuerzos y dolores",e.dolores)}${q("gan","Resultados y ganancias",e.ganancias)}</div>`;
+}
+
+function branchHTML(r, i){
+  let body;
+  if (r.tiempos){
+    body = "<ol>" + r.tiempos.map(t => `<li><span class="k">${t[0]}</span>${t[1]}</li>`).join("") + "</ol>";
+  } else {
+    body = "<ul>" + r.items.map(x => `<li>${x}</li>`).join("") + "</ul>";
+  }
+  return `<div class="branch${r.hero ? " hero" : ""}" data-b="${i}"><h3><span class="n">${i+1}</span>${r.h}</h3>${body}</div>`;
+}
+
+D.forEach((c, idx) => {
+  const b = document.createElement("button");
+  b.setAttribute("role","tab");
+  b.id = "tab-" + c.k;
+  b.style.setProperty("--c", c.c);
+  b.innerHTML = `<span class="dot"></span>${c.tab}`;
+  b.addEventListener("click", () => { location.hash = c.k; show(c.k); });
+  nav.appendChild(b);
+
+  const s = document.createElement("section");
+  s.className = "cap"; s.dataset.k = c.k; s.hidden = true;
+  const left = c.ramas.slice(0,3).map((r,i)=>branchHTML(r,i)).join("");
+  const right = c.ramas.slice(3).map((r,i)=>branchHTML(r,i+3)).join("");
+  const bmc = BMC.map(([k,n,t]) => `<div class="blk ${k}"><h4><span>${n}</span>${t}</h4><ul>${c.bmc[k].map(x=>`<li>${x}</li>`).join("")}</ul></div>`).join("");
+  s.innerHTML = `
+    <div>
+      <div class="sec-h"><span class="eyebrow">Mapa mental</span><h2>Cómo se construye «${c.titulo}»</h2></div>
+      <div class="map">
+        <svg class="links" aria-hidden="true"></svg>
+        <div class="col">${left}</div>
+        <div class="center"><div class="eyebrow">${c.cap}</div><div class="t">${c.titulo}</div><div class="p">${c.prota}<br>Producto: ${c.producto}</div></div>
+        <div class="col">${right}</div>
+      </div>
+    </div>
+    <div>
+      <div class="sec-h"><span class="eyebrow">Mapa de empatía</span><h2>${EMP[c.k].quien}, ${EMP[c.k].rol.charAt(0).toLowerCase()+EMP[c.k].rol.slice(1)}</h2></div>
+      ${empHTML(EMP[c.k])}
+    </div>
+    <div>
+      <div class="sec-h"><span class="eyebrow">Business Model Canvas</span><h2>${c.producto}</h2></div>
+      <div class="canvas-wrap"><div class="bmc">${bmc}</div></div>
+      <p class="note">Los números siguen el orden en que se llena el Canvas: primero segmentos y propuesta de valor, al final costos.</p>
+    </div>`;
+  main.appendChild(s);
+});
+
+function drawLinks(sec){
+  const map = sec.querySelector(".map"), svg = map.querySelector("svg.links");
+  if (getComputedStyle(svg).display === "none") { svg.innerHTML = ""; return; }
+  const m = map.getBoundingClientRect();
+  const ce = map.querySelector(".center").getBoundingClientRect();
+  const cx = ce.left - m.left + ce.width/2, cy = ce.top - m.top + ce.height/2, rad = ce.width/2;
+  let paths = "";
+  map.querySelectorAll(".branch").forEach(br => {
+    const r = br.getBoundingClientRect();
+    const isLeft = r.left < ce.left;
+    const bx = isLeft ? r.right - m.left : r.left - m.left;
+    const by = r.top - m.top + 22;
+    const ang = Math.atan2(by - cy, bx - cx);
+    const sx = cx + Math.cos(ang)*rad, sy = cy + Math.sin(ang)*rad;
+    const mx = (sx + bx)/2;
+    paths += `<path d="M${sx.toFixed(1)},${sy.toFixed(1)} C${mx.toFixed(1)},${sy.toFixed(1)} ${mx.toFixed(1)},${by.toFixed(1)} ${bx.toFixed(1)},${by.toFixed(1)}"/>`;
+  });
+  svg.innerHTML = paths;
+}
+
+function show(k){
+  if (!D.some(c => c.k === k)) k = D[0].k;
+  document.querySelectorAll("section.cap").forEach(s => s.hidden = s.dataset.k !== k);
+  nav.querySelectorAll("button").forEach(b => b.setAttribute("aria-selected", b.id === "tab-" + k ? "true" : "false"));
+  const sec = document.querySelector(`section.cap[data-k="${k}"]`);
+  requestAnimationFrame(() => drawLinks(sec));
+}
+
+window.addEventListener("hashchange", () => show(location.hash.slice(1)));
+window.addEventListener("resize", () => { const s = document.querySelector("section.cap:not([hidden])"); if (s) drawLinks(s); });
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { const s = document.querySelector("section.cap:not([hidden])"); if (s) drawLinks(s); });
+show(location.hash.slice(1));
+</script>
+
+</body>
+</html>
